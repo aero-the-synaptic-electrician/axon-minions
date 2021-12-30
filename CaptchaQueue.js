@@ -3,7 +3,7 @@ import { SmartBuffer } from 'smart-buffer';
 
 import { Minion } from './Minion.js';
 
-class CaptchaQueue {
+export class CaptchaQueue {
     /** @param {WebSocket} ws */
     constructor(ws) {
         this.ws = ws;
@@ -11,7 +11,7 @@ class CaptchaQueue {
         /** @type {Minion} */
         this.waitingMinion = null;
 
-        /** @type {Array<string>} */
+        /** @type {Array<String>} */
         this.tokens = [];
     }
 
@@ -60,5 +60,3 @@ class CaptchaQueue {
         this.waitingMinion = null;
     }
 };
-
-export { CaptchaQueue };
