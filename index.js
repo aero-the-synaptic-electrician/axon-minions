@@ -6,7 +6,9 @@ import config from './config.js';
 import { Minion } from './Minion.js';
 import { CaptchaQueue } from './CaptchaQueue.js';
 
-const wss = new WebSocketServer({ port: 6969 });
+const wss = new WebSocketServer({
+    port: 6969
+});
 
 /** @type {Set<Minion>} */
 const minions = new Set();
@@ -15,187 +17,190 @@ const minions = new Set();
  * @param {String} url 
  * @param {Boolean} state 
  */
-const updateMovement = state => {	
-	for (const minion of minions.values())
-		minion.movementEnabled = state;
+const updateMovement = state => {
+    for(const minion of minions.values())
+        minion.movementEnabled = state;
 }
 
 const info = {
-	url: null,
-	name: config.name,
-	tag: config.tag
+    url: null,
+    name: config.name,
+    tag: config.tag
 };
 
 wss.on('connection', ws => {
-	console.log('Established connection with the client');
+    console.log('Established connection with the client');
 
-	const captchaQueue = new CaptchaQueue(ws);
-	
-	ws.on('message', message => {
-		const reader = SmartBuffer.fromBuffer(message);
+    const captchaQueue = new CaptchaQueue(ws);
 
-		const activeMinions = [...minions.values()]
-			.filter(x => x.active && x.connected);
+    ws.on('message', message => {
+        const reader = SmartBuffer.fromBuffer(message);
 
-		switch (reader.readUInt8()) {
-			case 1: {
-				let i = 0;
+        const activeMinions = [...minions.values()]
+            .filter(x => x.active && x.connected);
 
-				for (const minion of activeMinions) {
-					setTimeout(() => minion.spawn(), ++i % 2 === 0 ? Math.max(1, Math.floor(Math.random() * 4)) : 0);
-				}
-				
-				break;
-			}
+        switch(reader.readUInt8()) {
+            case 1: {
+                let i = 0;
 
-			case 16: {
-				const x = reader.readInt16LE();
-				const y = reader.readInt16LE();
+                for(const minion of activeMinions) {
+                    setTimeout(() => minion.spawn(), ++i % 2 === 0 ? Math.max(1, Math.floor(Math.random() * 4)) : 0);
+                }
 
-				for (const minion of activeMinions)
-					minion.move(x, y);
-					
-				break;
-			}
+                break;
+            }
 
-			case 17: {
-				const count = reader.readUInt8();
+            case 16: {
+                const x = reader.readInt16LE();
+                const y = reader.readInt16LE();
 
-				let i = 0;
+                for(const minion of activeMinions)
+                    minion.move(x, y);
 
-				for (const minion of activeMinions) {
-					if (minion.alive) {
-						setTimeout(() => minion.split(count), ++i % 3 === 0 ? i * 4 : 0);
-					}
-				}
+                break;
+            }
 
-				break;
-			}
+            case 17: {
+                const count = reader.readUInt8();
 
-			case 21: {
-				const state = !!reader.readUInt8();
+                let i = 0;
 
-				let i = 0;
+                for(const minion of activeMinions) {
+                    if(minion.alive) {
+                        setTimeout(() => minion.split(count), ++i % 3 === 0 ? i * 4 : 0);
+                    }
+                }
 
-				for (const minion of activeMinions) {					
-					if (minion.alive) {
-						setTimeout(() => minion.feed(state), ++i % 3 === 0 ? i * 4 : 0);
-					}
-				}
+                break;
+            }
 
-				break;
-			}
+            case 21: {
+                const state = !!reader.readUInt8();
 
-			case 4: {
-				const currentPlayers = reader.readUInt8();
-				const maxPlayers = reader.readUInt8();
-				
-				const freeSlots = maxPlayers - currentPlayers;
+                let i = 0;
 
-				if (freeSlots <= 0 || freeSlots >= 200 || !info.url) {
-					console.warn('Invalid usage of start operation!');
-					return;
-				}
+                for(const minion of activeMinions) {
+                    if(minion.alive) {
+                        setTimeout(() => minion.feed(state), ++i % 3 === 0 ? i * 4 : 0);
+                    }
+                }
 
-				console.log(`Connecting ${freeSlots} minion(s)`);
+                break;
+            }
 
-				/** @type {Array<Minion>} */
-				const joinQueue = [];
+            case 4: {
+                const currentPlayers = reader.readUInt8();
+                const maxPlayers = reader.readUInt8();
 
-				for (let i = 0; i < freeSlots; i++)
-					joinQueue.push(new Minion(captchaQueue, info));
+                const freeSlots = maxPlayers - currentPlayers;
 
-				/** @type {{url:String}} */
-				const { url: serverUrl } = info;
+                if(freeSlots <= 0 || freeSlots >= 200 || !info.url) {
+                    console.warn('Invalid usage of start operation!');
+                    return;
+                }
 
-				joinQueue.forEach((minion, index) => {
-					minion.captchaQueue = captchaQueue;
-					
-					const delay = index >= 16 && index <= 48 ? 120 * index : 80 * index;
-					setTimeout(() => {
-						minion.connect(serverUrl);
-						minions.add(minion);
-					}, delay);
-				});
-				
-				break;
-			}
+                console.log(`Connecting ${freeSlots} minion(s)`);
 
-			case 5: {
-				console.log(`Disconnecting ${activeMinions.length} minion(s)`);
+                /** @type {Array<Minion>} */
+                const joinQueue = [];
 
-				for (const minion of minions.values()) {
-					if (minion.active)
-						minion.ws.terminate();
-				}
+                for(let i = 0; i < freeSlots; i++)
+                    joinQueue.push(new Minion(captchaQueue, info));
 
-				minions.clear();
+                /** @type {{url:String}} */
+                const {
+                    url: serverUrl
+                } = info;
 
-				break;
-			}
+                joinQueue.forEach((minion, index) => {
+                    minion.captchaQueue = captchaQueue;
 
-			case 6: {
-				const message = reader.readString();
+                    const delay = index >= 16 && index <= 48 ? 120 * index : 80 * index;
+                    setTimeout(() => {
+                        minion.connect(serverUrl);
+                        minions.add(minion);
+                    }, delay);
+                });
 
-				for (const minion of activeMinions)
-					minion.chat(message);
+                break;
+            }
 
-				break;
-			}
+            case 5: {
+                console.log(`Disconnecting ${activeMinions.length} minion(s)`);
 
-			case 7: {
-				const pid = reader.readUInt16LE();
+                for(const minion of minions.values()) {
+                    if(minion.active)
+                        minion.ws.terminate();
+                }
 
-				for (const minion of activeMinions)
-					minion.spectate(pid);
+                minions.clear();
 
-				break;
-			}
+                break;
+            }
 
-			case 8: {
-				info.url = reader.readString();
-				console.log(`Connected to server URL ${info.url}`);
-				setTimeout(() => updateMovement(true), 1000); 
-				break;
-			}
+            case 6: {
+                const message = reader.readString();
 
-			case 9: {
-				info.name = decodeURIComponent(reader.readStringNT());
+                for(const minion of activeMinions)
+                    minion.chat(message);
 
-				const tagChanged = !!reader.readUInt8();
+                break;
+            }
 
-				if (tagChanged)
-					info.tag = decodeURIComponent(reader.readStringNT());
+            case 7: {
+                const pid = reader.readUInt16LE();
 
-				for (const minion of minions.values()) {
-					minion.name = info.name;
-					minion.tag = info.tag;
-				}
+                for(const minion of activeMinions)
+                    minion.spectate(pid);
 
-				break;
-			}
+                break;
+            }
 
-			case 10: {
-				const state = !!reader.readUInt8();
+            case 8: {
+                info.url = reader.readString();
+                console.log(`Connected to server URL ${info.url}`);
+                setTimeout(() => updateMovement(true), 1000);
+                break;
+            }
 
-				for (const minion of minions.values())
-					minion.movementEnabled = state;
+            case 9: {
+                info.name = decodeURIComponent(reader.readStringNT());
 
-				break;
-			}
+                const tagChanged = !!reader.readUInt8();
 
-			case 11: {
-				captchaQueue.handleToken(reader.readString());
-				break;
-			}
+                if(tagChanged)
+                    info.tag = decodeURIComponent(reader.readStringNT());
 
-			default: break;
-		}
-	});
+                for(const minion of minions.values()) {
+                    minion.name = info.name;
+                    minion.tag = info.tag;
+                }
+
+                break;
+            }
+
+            case 10: {
+                const state = !!reader.readUInt8();
+
+                for(const minion of minions.values())
+                    minion.movementEnabled = state;
+
+                break;
+            }
+
+            case 11: {
+                captchaQueue.handleToken(reader.readString());
+                break;
+            }
+
+            default:
+                break;
+        }
+    });
 
     ws.on('close', () => {
         console.warn('Connection lost with the client');
 
-		updateMovement(false);
+        updateMovement(false);
     });
 });
